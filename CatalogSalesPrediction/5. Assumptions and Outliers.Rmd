@@ -1,0 +1,148 @@
+---
+title: "Assumptions and Outliers"
+date: "11/23/2017"
+output: html_document
+---
+
+```{r}
+library(car)
+```
+
+#read in the data
+```{r}
+final = read.csv('output/final.csv')
+final$datead6 = NULL
+final$datelp6 = NULL
+final$id = NULL
+
+train = final[(final$train == 1 & final$targdol > 0),]
+test = final[(final$train == 0 & final$targdol > 0),]
+```
+
+Demean variables
+```{r}
+keep <- c("targdol", "log_td", "log_LTOavg", "log_slslyr", "log_slstyr",
+          "log_sls2yr", "log_sls3yr", "durlp", "dreturn", "log_slshist",
+          "dormant", "stycode", "lpcode", "fall_pref", "sumrecent", "train")
+centered <- final[,keep]
+centered$log_slstyr <- demean(centered$log_slstyr)
+centered$log_slslyr <- demean(centered$log_slslyr)
+centered$log_sls2yr <- demean(centered$log_sls2yr)
+centered$log_sls3yr <- demean(centered$log_sls3yr)
+centered$log_slshist <- demean(centered$log_slshist)
+centered$log_LTOavg <- demean(centered$log_LTOavg)
+
+centered$stycode = as.factor(centered$stycode)
+centered$lpcode = as.factor(centered$lpcode)
+
+cent.train = centered[(centered$train == 1 & centered$targdol > 0),]
+cent.test = centered[(centered$train == 0 & centered$targdol > 0),]
+```
+
+#Linear Regression:
+```{r}
+linfit = lm(log_td ~ I(log_slslyr^2) + I(log_slstyr^2) + I(log_sls2yr^2) + 
+                 I(log_sls3yr^2) + log_slslyr + log_slstyr + log_sls2yr + 
+                 log_sls3yr + log_LTOavg + lpcode, data = cent.train)
+
+summary(linfit)
+```
+
+##Normality and Homoscedasticity:
+obs 96800, 12811, 41493
+```{r}
+plot(linfit, which = 2) # normality
+plot(linfit, which = 1) # homoscedasticity
+```
+
+##Outliers and Influential Observations: 
+#Check using standardized errors
+```{r}
+stdres <- rstandard(linfit)
+table(stdres > 3)
+table(stdres > 4)
+```
+
+#Outliers identified by over 4 stdres: 12811,41493
+```{r}
+stdres <- rstandard(linfit)
+lstd<-names(stdres[stdres>4])
+cent.train[rownames(cent.train) %in% lstd,]
+```
+
+Check using leverage (249 observations fail the test, not too bad as we kinda expected this to happen)
+```{r}
+threshold <- 2*length(linfit$coefficients)/length(linfit$fitted.values)
+hat <- hatvalues(linfit)
+table(hat > threshold)
+```
+
+##Cook's distance:
+obs 49914, 99855, 78396
+```{r}
+plot(linfit, which = 4:6) # influential and outlier
+#cooktable<-cent.train[cooks.distance(linfit)>4/4832,]
+#cookout<-rownames(cooktable)
+#length(cookout)
+```
+
+#Outliers identified from above: obs 96800, 12811, 41493,
+"96800", "12811", "41493",
+"49914","99855","78396" - cook 3
+```{r}
+cent.train[rownames(cent.train) %in% c("49914","99855","78396"),]
+```
+
+#VIF and multicollinearity
+All below 10.
+```{r}
+vif(linfit)
+```
+
+#Remove a total of 6 outliers
+"49914","99855","78396" - cook 3
+```{r}
+rm<-c("96800", "12811", "41493","49914","99855","78396")
+cent.train.rm<-cent.train[!rownames(cent.train) %in% rm,]
+```
+
+#Linear Regression after removing outliers:
+```{r}
+cent.linfit.rm = lm(log_td ~ I(log_slslyr^2) + I(log_slstyr^2) + I(log_sls2yr^2) + 
+                 I(log_sls3yr^2) + log_slslyr + log_slstyr + log_sls2yr + 
+                 log_sls3yr + log_LTOavg, data = cent.train.rm)
+
+summary(cent.linfit.rm)
+```
+
+### MSPE new model
+```{r}
+cent.results.rm = exp(predict(cent.linfit.rm, newdata = cent.test))
+cent.MSPE.rm = sum(((test$targdol) - cent.results.rm)^2)/(dim(test)[1]-(length(cent.linfit.rm$coefficients)))
+cent.MSPE.rm #2652.167
+
+plot(cent.linfit.rm, which = 1:6)
+```
+
+### Final Predictions from cent.linfit on test
+```{r}
+testFinal = read.csv('testFinal.csv')
+testFinal$stycode = as.factor(testFinal$stycode)
+testFinal$lpcode = as.factor(testFinal$lpcode)
+```
+
+#### Predict targdol with using dataset after removing outliers
+```{r}
+testFinal$E_targdol = predict(cent.linfit.rm, testFinal)
+testFinal$finalPred = testFinal$E_targdol * testFinal$predict
+
+top1000 = head(testFinal[order(testFinal$finalPred, decreasing = TRUE), ], 1000)
+sum(top1000$targdol)
+
+maxPossible = head(testFinal[order(testFinal$targdol, decreasing = TRUE), ], 1000)
+sum(maxPossible$targdol)
+```
+
+```{r}
+sum(top1000$targdol)/sum(maxPossible$targdol)
+```

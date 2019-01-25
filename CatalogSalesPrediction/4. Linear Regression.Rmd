@@ -1,0 +1,234 @@
+---
+title: "Regression"
+date: "11/20/2017"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+Need a function to center variables, use de-mean from Jmisc package
+```{r}
+library(Jmisc)
+library(car)
+library(ggplot2)
+```
+
+```{r}
+final = read.csv('output/final.csv')
+final$datead6 = NULL
+final$datelp6 = NULL
+final$id = NULL
+
+final$lpcode = as.factor(final$lpcode)
+
+train = final[(final$train == 1 & final$targdol > 0),]
+test = final[(final$train == 0 & final$targdol > 0),]
+train$train = NULL
+test$train = NULL
+```
+
+Start with some regression specific EDA
+```{r}
+boxplot(train$targdol)
+
+ggplot(train, aes(x = targdol)) + 
+  geom_histogram(bins = 30)
+
+qqnorm(train$targdol, main = "Normal Q-Q Plot for targdol")
+
+summary(train$targdol)
+quantile(train$targdol, prob = seq(0, 1, length = 201), type = 5)
+
+train$targdol = NULL
+
+### Apply a log transformation
+boxplot(train$log_td)
+ggplot(train, aes(x = log_td)) + 
+  geom_histogram(bins = 30)
+qqnorm(train$log_td, main = "Normal Q-Q Plot for log(targdol)")
+##significant improvement after log transform
+```
+
+Build a big correlation matrix of y versus all the numeric x's.
+```{r}
+x <- sapply(train, function(x) is.numeric(x))
+num <- train[,x]
+cor_mat <- data.frame(log_td = cor(num)[-20,"log_td"])
+```
+
+pairwise for predictors included in model
+```{r}
+plot(train$log_slstyr, train$log_td)
+plot(train$log_slslyr, train$log_td)
+plot(train$log_sls2yr, train$log_td)
+plot(train$log_sls3yr, train$log_td)
+plot(train$log_LTOavg, train$log_td)
+```
+
+
+Demean variables
+```{r}
+keep <- c("targdol", "log_td", "log_LTOavg", "log_slslyr", "log_slstyr",
+          "log_sls2yr", "log_sls3yr", "durlp", "dreturn", "log_slshist",
+          "dormant", "stycode", "lpcode", "fall_pref", "train")
+centered <- final[,keep]
+centered$log_slstyr <- demean(centered$log_slstyr)
+centered$log_slslyr <- demean(centered$log_slslyr)
+centered$log_sls2yr <- demean(centered$log_sls2yr)
+centered$log_sls3yr <- demean(centered$log_sls3yr)
+centered$log_slshist <- demean(centered$log_slshist)
+centered$log_LTOavg <- demean(centered$log_LTOavg)
+
+centered$stycode = as.factor(centered$stycode)
+centered$lpcode = as.factor(centered$lpcode)
+
+cent.train = centered[(centered$train == 1 & centered$targdol > 0),]
+cent.test = centered[(centered$train == 0 & centered$targdol > 0),]
+```
+
+Original regression, no demeaning bs
+```{r}
+fit = lm(log_td ~  
+         I(log_slslyr^2)
+         + I(log_slstyr^2)
+         + I(log_sls2yr^2)
+         + I(log_sls3yr^2)
+         + log_slslyr
+         + log_slstyr
+         + log_sls2yr
+         + log_sls3yr
+         + log_LTOavg
+         + lpcode
+         + (fall_pref * log_LTOavg)
+         + (dormant * log_LTOavg)
+         + dormant
+         + fall_pref
+       , data = train)
+
+summary(fit)
+length(fit$coefficients) # 14 predictors, so p+1 = 15
+vif(fit)
+sum(vif(fit) > 10)
+```
+
+```{r}
+full = lm(log_td ~  
+         I(log_slslyr^2)
+         + I(log_slstyr^2)
+         + I(log_sls2yr^2)
+         + I(log_sls3yr^2)
+         + log_slslyr
+         + log_slstyr
+         + log_sls2yr
+         + log_sls3yr
+         + log_LTOavg
+         + lpcode
+         + (fall_pref * log_LTOavg)
+         + (dormant * log_LTOavg)
+         + dormant
+         + fall_pref
+       , data = cent.train)
+summary(full)
+
+cent.linfit = lm(log_td ~  
+         I(log_slslyr^2)
+         + I(log_slstyr^2)
+         + I(log_sls2yr^2)
+         + I(log_sls3yr^2)
+         + log_slslyr
+         + log_slstyr
+         + log_sls2yr
+         + log_sls3yr
+         + log_LTOavg
+         + lpcode
+       , data = cent.train)
+summary(cent.linfit)
+vif(cent.linfit)
+vif(full)
+anova(full, cent.linfit)
+```
+
+
+### MSPE original regression
+```{r}
+results = predict(fit, newdata = test)
+results = exp(results)
+MSPE = sum(((test$targdol) - results)^2)/(dim(test)[1]-(length(fit$coefficients)))
+MSPE #2652.041
+```
+
+### MSPE new model
+```{r}
+cent.results = exp(predict(cent.linfit, newdata = cent.test))
+cent.MSPE = sum(((test$targdol) - cent.results)^2)/(dim(test)[1]-(length(cent.linfit$coefficients)))
+cent.MSPE #2652.791
+```
+
+### Final Predictions from cent.linfit on test
+```{r}
+testFinal = read.csv('output/testFinal.csv')
+testFinal$stycode = as.factor(testFinal$stycode)
+testFinal$lpcode = as.factor(testFinal$lpcode)
+```
+
+#### Full LR model
+```{r}
+testFinal$E_targdol = predict(cent.linfit, testFinal)
+testFinal$finalPred = testFinal$E_targdol * testFinal$predict
+
+top1000 = head(testFinal[order(testFinal$finalPred, decreasing = TRUE), ], 1000)
+sum(top1000$targdol)
+
+maxPossible = head(testFinal[order(testFinal$targdol, decreasing = TRUE), ], 1000)
+sum(maxPossible$targdol)
+```
+```{r}
+sum(top1000$targdol)/sum(maxPossible$targdol)
+```
+
+##Run cent.linfit through lasso and see if any vars get dropped
+
+Run 10-fold CV lasso:
+```{r}
+library(glmnet)
+set.seed(100)
+
+x = model.matrix(cent.linfit)
+y = as.matrix(cent.train$log_td)
+
+cv.lasso = cv.glmnet(x, y, nfolds=10, alpha=1)
+plot(cv.lasso)
+bestlam = cv.lasso$lambda.1se
+
+lasso.fit = glmnet(x, y, alpha=1, lambda=bestlam)
+coef(lasso.fit)
+
+plot(cv.lasso$glmnet.fit, xvar = "lambda", type.coeff = "2norm")
+```
+Using the 1se cutoff for lambda, lasso suggests dropping lpcode2 and lpcode3 from the model.
+```{r}
+
+lm.lasso = lm(log_td ~ I(log_slslyr^2) + I(log_slstyr^2) + I(log_sls2yr^2) + 
+                 I(log_sls3yr^2) + log_slslyr + log_slstyr + log_sls2yr + 
+                 log_sls3yr + log_LTOavg, data = cent.train)
+
+lasso.preds = predict(lm.lasso, cent.test)
+summary(lm.lasso)
+MSPE = sum(((cent.test$targdol) - exp(lasso.preds))^2)/(dim(cent.test)[1]-(length(lm.lasso$coefficients)))
+MSPE
+```
+As a result MSPE decreases by 1. 
+
+```{r}
+testFinal$E_targdol_lasso = predict(lm.lasso, testFinal)
+testFinal$finalPred_lasso = testFinal$E_targdol_lasso * testFinal$predict
+
+top1000 = head(testFinal[order(testFinal$finalPred_lasso, decreasing = TRUE), ], 1000)
+sum(top1000$targdol)
+
+maxPossible = head(testFinal[order(testFinal$targdol, decreasing = TRUE), ], 1000)
+sum(maxPossible$targdol)
+
+sum(top1000$targdol)/sum(maxPossible$targdol)
+```
+The LR Model selected by Lasso performs ~0.2% worse on targdol capture.

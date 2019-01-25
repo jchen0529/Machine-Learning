@@ -1,0 +1,274 @@
+---
+title: "Logistic Regression"
+date: "11/19/2017"
+output: html_document
+---
+### Read in data
+```{r}
+data = read.csv("output/final.csv")
+```
+
+### Add purchase column 
+```{r}
+data$purchase = data$targdol > 0
+```
+
+### Remove unnecessary columns
+```{r}
+data$datead6 = NULL
+data$datelp6 = NULL
+data$id = NULL
+```
+
+### Change `stycode` to a factor
+```{r}
+data$stycode = factor(data$stycode)
+```
+
+### Add additional binary variable saleincrease - increase in recent purchases might indicate customers like the products
+```{r}
+#increase sales
+data$saleincrease = 0
+data$saleincrease[data$slstyr>data$slslyr | data$slslyr >data$sls2ago | data$sls2ago >data$sls3ago] = 1
+table(data$saleincrease)
+
+data2 = data[data$targdol>0,]
+#plot makes sense more people who increased purchases over time have higher targdol, use this variable for predicting targdol
+plot(data2$saleincrease, data2$targdol)
+```
+
+### Split into train and test
+And get rid of unnecessary columns. 
+```{r}
+train = data[data$train == 1,]
+test = data[data$train != 1,]
+train$train = NULL
+test$train = NULL
+```
+
+### Additional EDA
+Question: orders better than sales data?
+Not explored variables: ordtyr, ordlyr, ord2ago, ord3ago, ordhist
+
+Good Variables:
+```{r}
+library(ggplot2)
+
+ggplot(train, aes(x = lpuryear, fill = purchase)) + 
+  geom_bar(position = "fill") + 
+  ggtitle("lpuryear") + 
+  ylab("proportion")
+
+ggplot(train, aes(x = stycode, fill = purchase)) + 
+  geom_bar(position = "fill") + 
+  ggtitle("stycode") + 
+  ylab("proportion")
+
+ggplot(train, aes(x = lpcode, fill = purchase)) + 
+  geom_bar(position = "fill") + 
+  ggtitle("lpcode") + 
+  ylab("proportion")
+
+ggplot(train, aes(x = dormant, fill = purchase)) + 
+  geom_bar(position = "fill") + 
+  ggtitle("dormant") + 
+  ylab("proportion")
+
+ggplot(train, aes(x = dreturn, fill = purchase)) + 
+  geom_bar(position = "fill") + 
+  ggtitle("dreturn") + 
+  ylab("proportion")
+
+ggplot(train, aes(x = slstyr>0, fill = purchase)) + 
+  geom_bar(position = "fill") + 
+  ggtitle("slstyr as y/n") + 
+  ylab("proportion")
+
+ggplot(train, aes(x = slslyr>0, fill = purchase)) + 
+  geom_bar(position = "fill") + 
+  ggtitle("slslyr as y/n") + 
+  ylab("proportion")
+
+ggplot(train, aes(x = sls2ago>0, fill = purchase)) + 
+  geom_bar(position = "fill") + 
+  ggtitle("sls2ago as y/n") + 
+  ylab("proportion")
+
+ggplot(train, aes(x = sls3ago>0, fill = purchase)) + 
+  geom_bar(position = "fill") + 
+  ggtitle("sls2ago as y/n") + 
+  ylab("proportion")
+
+ggplot(train, aes(x = saleincrease, fill = purchase)) + 
+  geom_bar(position = "fill") + 
+  ggtitle("saleincrease as y/n") + 
+  ylab("proportion")
+
+boxplot(log(slshist)~purchase, data = train) # quite a few outliers labeled! 
+#boxplot(slshist~purchase, data = train)
+boxplot(ordhist~purchase, data = train)
+#boxplot(falord~purchase, data = train, main = "slstyr")
+#boxplot(sprord~purchase, data = train, main = "slstyr")
+boxplot(sumrecent~purchase, data = train, main = "slstyr") # this is the best
+boxplot(log(durlp)~purchase, data = train, main = "durlp")
+```
+
+Crap Variables:
+```{r}
+ggplot(train, aes(x = adyear, fill = purchase)) + 
+  geom_bar(position = "fill") + 
+  xlim(2003,2012) + 
+  ggtitle("adyear") + 
+  ylab("proportion")
+  
+ggplot(train, aes(x = fall_pref, fill = purchase)) + 
+  geom_bar(position = "fill") + 
+  ggtitle("fall_pref") + 
+  ylab("proportion")
+
+# not sure how transformations here do...
+boxplot(slstyr~purchase, data = train, main = "slstyr")
+boxplot(slslyr~purchase, data = train, main = "slstyr")
+boxplot(sls2ago~purchase, data = train, main = "slstyr")
+boxplot(sls3ago~purchase, data = train, main = "slstyr")
+
+boxplot(ordtyr~purchase, data = train, main = "slstyr")
+boxplot(ordlyr~purchase, data = train, main = "slstyr")
+boxplot(ord2ago~purchase, data = train, main = "slstyr")
+boxplot(ord3ago~purchase, data = train, main = "slstyr")
+
+boxplot(log(avgLTOrder)~purchase, data = train, main = "slstyr")
+boxplot(log(durad+1)~purchase, data = train, main = "durad")
+```
+
+### Final logistic model building
+```{r}
+#tested lpcode, not significant for logistic
+fit = glm(purchase~
+            I(stycode) + 
+            dreturn + 
+            (slstyr > 0) + 
+            (slslyr > 0) +
+            (sls2ago > 0) + 
+            (sls3ago > 0) +
+            log(durlp) + 
+            sqrt(ordhist) + 
+            (sls2ago > 0 & sls3ago > 0) + 
+            (slstyr > 0 & slslyr > 0 & sls2ago > 0 & sls3ago > 0) +
+             sumrecent
+           , family = "binomial", data = train)
+summary(fit)
+
+```
+Predict on train:
+```{r}
+library(InformationValue)
+results = predict(fit, newdata = train, type = "response")
+cutoff = optimalCutoff(train$purchase, results)
+results = results > cutoff
+table = table(results, train$purchase)
+#CCR
+sum(diag(table))/sum(table)
+```
+Predict on test: 
+```{r}
+results = predict(fit, newdata = test, type = "response")
+results = results > cutoff
+table = table(results, test$purchase)
+#CCR
+sum(diag(table))/sum(table)
+```
+
+Find AUC of the fitted model
+```{r}
+library(pROC)
+plot = plot.roc(train$purchase, fit$fitted.values,xlab="Specificity")
+plot$auc
+```
+
+### Predict on test and check on test AUC
+```{r}
+library(pROC)
+test$predict = predict(fit, newdata = test, type = "response")
+plot = plot.roc(test$purchase, test$predict,xlab="Specificity")
+plot$auc #0.8183
+```
+
+### Variable selection - Run the model above through lasso
+```{r}
+library(glmnet)
+set.seed(100)
+
+x = model.matrix(fit)
+y = as.matrix(train$purchase)
+
+cv.lasso = cv.glmnet(x, y, nfolds=10, alpha=1, family = "binomial")
+plot(cv.lasso)
+bestlam = cv.lasso$lambda.1se
+
+lasso.fit = glmnet(x, y, alpha=1, lambda=bestlam)
+coef(lasso.fit)
+
+#plot(cv.lasso$glmnet.fit, xvar = "lambda", type.coeff = "2norm")
+```
+Lasso dropped two variables: sumrecent and dreturn 
+```{r}
+fit.lasso = glm(formula = purchase ~ I(stycode) + (slstyr > 0) + 
+              (slslyr > 0) + (sls2ago > 0) + (sls3ago > 0) + log(durlp) + 
+              sqrt(ordhist) + (sls2ago > 0 & sls3ago > 0) + (slstyr > 0 & 
+              slslyr > 0 & sls2ago > 0 & sls3ago > 0), family = "binomial", 
+              data = train)
+
+summary(fit.lasso)
+```
+
+Predict on train
+```{r}
+results.lasso = predict(fit.lasso, newdata = train, type = "response")
+cutoff = optimalCutoff(train$purchase, results.lasso)
+results.lasso = results.lasso > cutoff
+table = table(results.lasso, train$purchase)
+sum(diag(table))/sum(table)
+```
+
+Predict on test: 
+```{r}
+results.lasso = predict(fit.lasso, newdata = test, type = "response")
+results.lasso = results.lasso > cutoff
+table = table(results.lasso, test$purchase)
+sum(diag(table))/sum(table)
+```
+
+Check on auc of the lasso model:
+``` {r}
+plot = plot.roc(train$purchase, fitted(fit.lasso),xlab="Specificity")
+plot$auc #0.8113
+```
+
+Predict on test set
+``` {r}
+test$predict_lasso = predict(fit.lasso, test, type = "response")
+```
+
+Test auc:
+``` {r}
+plot = plot.roc(test$purchase, test$predict_lasso,xlab="Specificity")
+plot$auc #0.8168
+```
+
+The lasso model performs nearly identically to the original, perform likelihood ratio test to test if the model after dropping the variables were better.
+
+#Likelihood ratio test
+```{r}
+library(lmtest)
+lrtest(fit, fit.lasso)
+```
+highly significant, indicating the full model, before dropping the variables through lasso, was a better fit
+
+### Export test set with predictived probabilities of purchasing using full model's variables & coefficients 
+```{r}
+export = subset(test, select = -c(predict_lasso))
+write.csv(export, "output/testFinal.csv", row.names = FALSE)
+```
+
+

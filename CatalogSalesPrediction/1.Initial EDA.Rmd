@@ -1,0 +1,252 @@
+---
+title: "Project"
+author: "The team (Jamie, Luca, Michael, Penny, Sarah)"
+date: "8/11/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message = FALSE}
+library(ggplot2)
+library(lubridate)
+library(dplyr)
+```
+
+Load the data.
+```{r}
+data <- read.csv("data/catalog sales data.csv")
+
+#create id variable for each observation
+data$id <- seq(1,nrow(data))
+
+# reformat dates
+data$datelp6 <- as.Date(data$datelp6, format="%m/%d/%Y")
+data$datead6 <- as.Date(data$datead6, format="%m/%d/%Y")
+
+#make a subset of the data with only people who responded to the promotion
+buyers <- data[data$targdol > 0,]
+
+#check duplicates
+sapply(data, function(x) sum(is.na(x)))
+```
+lpur year is the only variable with missing values
+
+Date Added ==> Sarah
+- is there bulk loading
+- is it smaller than or equal than date last purchase (834 fail this check)
+
+Oddities: 
+- There were 4 customers added on June 1, 1931, which is nearly 50 years before the next addition. The first major addition is in 1993.
+- Until 1994, it seems like things were added once a year (2800 obs; only 573 of them have positive targdol). It wasn't until 1996 that people were added monthly
+- It seems like the fall/winter months are peak season for being added (Luca: confirmed that with a graph)
+- There are 834 (.1%) records who were added after their last purchase date, on average they were added around 240 days after.
+
+Overarching question(s):
+- Does the date added to the file actually matter in terms of predicting what we are looking for? 
+
+```{r}
+# by year
+ggplot(data, aes(x=datead6)) + geom_histogram(binwidth=30) +
+       scale_x_date(date_labels = "%Y",
+                    date_breaks = "1 year",
+                    limits = c(as.Date("1980-01-01"), as.Date("2013-01-01"))) +
+  labs(x = "Year", y = "Frequency", title = "Date added by Year") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+# see how many months per year people are added
+month_yr <- format(as.Date(data$datead6), "%Y-%m")
+month_yr <- as.data.frame(table(month_yr))
+month_yr
+
+year <- substring(month_yr$month_yr, 1,4)
+table(year)
+
+# seasonality after 1995
+ggplot(data, aes(x=datead6)) + geom_histogram(binwidth=30) +
+       scale_x_date(date_labels = "%Y",
+                    date_breaks = "1 year",
+                    limits = c(as.Date("1995-01-01"), as.Date("2013-01-01"))) +
+  labs(x = "Year", y = "Frequency", title = "Seasonality Zoom") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+# quarterly graph 2002 onwards (look at that mauve color)
+q_yr <- data.frame(date = data$datead6)
+q_yr$qdate <- paste0(year(q_yr$date), "-", quarters(q_yr$date))
+q_yr <- q_yr[q_yr$date > as.Date("2002-01-01"),-1]
+q_yr <- as.data.frame(table(q_yr))
+colnames(q_yr) <- c("qdate", "value")
+q_yr$year <- substr(q_yr$qdate,1,4)
+q_yr$quarter <- substr(q_yr$qdate,6,7)
+
+ggplot(q_yr, aes(fill=quarter, y=value, x=year)) +
+  geom_bar(position="dodge", stat="identity") +
+  labs(x = "Year", y = "Frequency", title = "Seasonality Zoom") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom")
+
+# date added is after last purchase date
+table(data$datead6 <= data$datelp6)
+failed_set <- data[!data$datead6 <= data$datelp6,]
+
+# on average, added 240 days after last purchase! (gasp)
+mean(failed_set$datead6 - failed_set$datelp6)
+```
+
+lpuryear looks like crap ==> Luca
+If we need it (which is not necessarily the case), I think that we should recalculate it using date last purchase.
+There are 728 missing values. All observations with datelp6 < 2003-01-01 have missing values in lpuryear. 23 of the observations after that date have missing values.
+Approximately 7% of the observations have an inconsistency between the lpuryear and datelp6
+```{r}
+#make a subset of the data with only people who have last purchase before 2003
+early <- data[data$datelp6 < as.Date("2003-01-01"),]
+sum(is.na(early$lpuryear))/nrow(early)
+#all of these observations have missing lpuryear
+
+late <- data[data$datelp6 >= as.Date("2003-01-01"),]
+sum(is.na(late$lpuryear))
+
+#check lpuryear
+wrong_lpuryear <- data[!is.na(data$lpuryear), ] #deal with the NAs
+wrong_lpuryear$manual.lpuryear <- as.integer(substr(wrong_lpuryear$datelp6, 4, 4))
+table(wrong_lpuryear$manual.lpuryear == wrong_lpuryear$lpuryear)
+wrong_lpuryear <- wrong_lpuryear[!(wrong_lpuryear$manual.lpuryear == wrong_lpuryear$lpuryear),c("targdol","lpuryear","manual.lpuryear", "datelp6")]
+
+#check how big the discrepancy between lpuryear and datelp6 is
+wrong_lpuryear$diff <- wrong_lpuryear$manual.lpuryear - wrong_lpuryear$lpuryear
+table(wrong_lpuryear$diff)
+#most of the times difference equal to 1, but sometimes larger than than
+```
+
+Date Last Purchased ==> Luca
+- we've seen they are clustered in 6 months intervals
+- min(datelp6) is 1980-01-01 in whole sample, but 2003-03-01 for buyers (people who responded to the promotion); observations with datelp6 before 2003 have already shown to be suspicious in the previous analysis; if we keep only the "late" observations, we have that range(late) = range(buyers), ie buyers is a subset from the same time period in terms of datelp
+
+```{r}
+summary(data$datelp6)
+summary(late$datelp6)
+summary(buyers$datelp6)
+```
+
+If you run a histogram or frequency distribution of the datelp6 variable among only those with targdol > 0 you will see that, for the most part, datelp6 equals one of two distinct dates in the calendar year.
+```{r}
+ggplot(late, aes(x=datelp6)) + geom_histogram(binwidth=10) +
+  labs(x = "Year", y = "Frequency", title = "Histogram suggested Ajit, all obs") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1),
+        plot.title = element_text(hjust = 0.5))
+ggplot(buyers, aes(x=datelp6)) + geom_histogram(binwidth=10) +
+  labs(x = "Year", y = "Frequency", title = "Histogram suggested Ajit, buyers") + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1),
+        plot.title = element_text(hjust = 0.5))
+```
+
+Sales ==> Jamie
+- total sales >= sum of sales; check! 
+(About 50% of the data have saleshist > sum of past year's sales, the largest diff is in the record added in 1993, with last purchase in 2008)
+- check no negatives; check!
+- can use to check dates (if there is a sale from last year and date last purchase is from 2 years ago, something is wrong)
+```{r}
+#Check on total sales
+sales_check <- data %>%
+  mutate(salehistcheck = slshist - (slstyr + slslyr + sls2ago + sls3ago)) %>%
+  mutate(yearadded = substr(datead6,0,4)) %>%
+  mutate(yearlastbuy = substr(datelp6,0,4)) %>%
+  mutate(yeardiff = as.numeric(yearlastbuy) - as.numeric(yearadded)) %>%
+  arrange(desc(salehistcheck)) %>%
+  filter(salehistcheck >0) 
+
+#Plot the diff in saleshistory vs year diff in date added and last purchase
+ggplot(data=sales_check, aes(x=yeardiff, y=salehistcheck)) + geom_line()
+```
+It's interesting to see the spikes even when the year difference is small, this suggests that date added is not when a customer first makes a purchase, he/she might have made many purchases in the years before being recorded in the catalog.
+
+```{r}
+#If there is a sale from this year and date/year of last purchase 
+lp_ThisYear_check <- sales_check %>%
+  mutate(yearlastbuy = as.numeric(yearlastbuy))%>%
+  filter(slstyr >0)%>%
+  group_by(yearlastbuy) %>% summarise(n=n(), slstyr = sum(slstyr)) %>%
+  mutate(prop = n/sum(n)) %>%
+  mutate(salesprop = slstyr/sum(slstyr))
+```
+Of the records that had a sale this year amount:
+- 62.6%'s last purchase year is 2011, and 36.5%'s last purchase year is 2012, contrary to my expectation that 'slstyr' refers to sales in 2012.
+- less than 2%'s records have last purchase year in 2003 - 2010, something's wrong with these records 
+```{r}
+#If the most recent sale is from last year, check date/year of last purchase 
+lp_lastYear_check <- sales_check %>%
+  mutate(yearlastbuy = as.numeric(yearlastbuy))%>%
+  filter(slstyr == 0 & slslyr >0)%>%
+  group_by(yearlastbuy) %>% summarise(n=n(), slslyr = sum(slslyr)) %>%
+  mutate(nprop = n/sum(n)) %>%
+  mutate(salesprop = slslyr/sum(slslyr))
+```
+Still unclear whether last year refers to 2010 or 2011. The majority (67%) were purchases in year 2010, 27% were purchases in year 2011. And there are records purchased in years before 2010.
+```{r}
+#If there is a sale from 2 years ago and date/year of last purchase 
+lp_2ago_check <- sales_check %>%
+  mutate(yearlastbuy = as.numeric(yearlastbuy))%>%
+  filter(slstyr == 0 & slslyr == 0 & sls2ago >0)%>%
+  group_by(yearlastbuy) %>% summarise(n=n(), sls2ago = sum(sls2ago)) %>%
+  mutate(prop = n/sum(n))%>%
+  mutate(salesprop = sls2ago/sum(sls2ago))
+```
+
+```{r}
+#If there is a sale from 3 years ago and date/year of last purchase 
+lp_3ago_check <- sales_check %>%
+  mutate(yearlastbuy = as.numeric(yearlastbuy))%>%
+  filter(slstyr == 0 & slslyr == 0 & sls2ago == 0 & sls3ago >0)%>%
+  group_by(yearlastbuy) %>% summarise(n=n(), sls3ago = sum(sls3ago)) %>%
+  mutate(prop = n/sum(n))%>%
+  mutate(salesprop = sls3ago/sum(sls3ago))
+```
+Overarching question(s):
+- How much does sales amount break down in the last 3 years matter in our predictions?
+-- Decides if we want to further clean the data and create category codes for salesthis year based on actual year of last purchase
+
+Orders ==> Michael
+- total order >= sum of orders; check!
+- date added not null and smaller than date last purchase
+- fall orders and spring orders, need to compare with total orders (their difference should ideally be zero and text says that 10% of them are off)
+
+```{r}
+#Check total orders geq last 3 years
+summary(data$ordhist >= rowSums(data[,c("ordtyr", "ordlyr", "ord2ago", "ord3ago")]))
+
+ord_diff = data$ordhist-rowSums(data[,c("ordtyr", "ordlyr", "ord2ago", "ord3ago")])
+
+# frequency of differences in ordhist and sum of orders
+summary(as.factor(ord_diff))
+summary(as.factor(ord_diff))/length(ord_diff)*100
+```
+We see that in all cases ord_hist >= sum of orders in the last 3 years, which is expected. in 49% of cases ord_hist matches the number of orders in the last 3 years, and in 88% of cases the number of orders is within 2. Extreme outliers are differences of 25 and 36 orders.
+
+### Check Date Added
+```{r}
+summary(data$datead6 <= data$datelp6)
+lp_ad_fail = data[data$datead6 > data$datelp6,]
+
+# calculate time difference (days) for failure cases
+time_diff = as.numeric(lp_ad_fail$datead6-lp_ad_fail$datelp6)
+summary(time_diff)
+boxplot(time_diff)
+```
+In a vast majority of cases (99.2%), date added is before date last purchased. Of the 834 failure cases, the median time difference between last purchase and ad is 23 days, with a huge right tail and a max time difference of 3158 days.
+
+```{r}
+summary(data$ordhist == data$falord+data$sprord)
+
+mismatched_seasons = data$ordhist - (data$falord+data$sprord)
+summary(mismatched_seasons == 0)
+qqnorm(mismatched_seasons)
+
+plot(as.factor(format(data$datead6[mismatched_seasons>-50], "%Y")), mismatched_seasons[mismatched_seasons>-50])
+
+mismatched_seasons[mismatched_seasons < -50]
+data[mismatched_seasons < -50,]
+```
+In 91.3% of cases, the sum of fall and spring orders matches the total ordhist. Of the mismatched cases, the median difference is 1 order. There are 3 extreme outliers, with reported differences of 98 orders between the sum of season orders and ordhist. These are likely miskeyed entries in the fall order count (they have 99,106 and 99 fall orders recorded respectively). This should be corrected by changing the value of falord.

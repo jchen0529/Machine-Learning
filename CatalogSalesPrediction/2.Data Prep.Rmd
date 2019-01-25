@@ -1,0 +1,151 @@
+---
+title: "Data Prep"
+date: "11/19/2017"
+output: html_document
+---
+
+### Load Data
+Load data, store copy as `original` and assign an ID column. 
+```{r}
+original = read.csv("data/catalog sales data.csv")
+original$id = as.factor(seq(1,nrow(original)))
+data = original
+```
+
+### Recompute Last Purchase Year to solve data discrepancy issue from EDA
+```{r}
+data$datelp6 = as.Date(data$datelp6, format="%m/%d/%Y")
+data$lpuryear = as.integer(substr(data$datelp6,0,4))
+```
+
+### March 2003 Cutoff and other observation dropping
+Because we discovered many inconsistancies with the purchases before 2003, we chose to exclude them from our dataset (initially). We also excluded 3 extreme outliers who had reported differences of 98 orders between the sum of season orders and ordhist. 
+```{r}
+data = data[data$datelp6 >= as.Date("2003-03-01"),]
+data = data[data$id != 69850 & data$id != 79281 & data$id != 80724,]
+```
+
+Recalculate ordhist as sum of falord and sprord (only 1703 data points have a difference that is larger than 1 in absolute value and 373 have difference larger than 2 in absolute value). We also make sure that the resulting ordhist is never smaller than the sum of the orders of the last 3 years. To do this, we impute values for spring and fall orders when "too few observations" have been recorded in these variables.
+```{r}
+data$sumrecent = data$ordtyr + data$ordlyr + data$ord2ago + data$ord3ago
+data$newordhist = data$sprord + data$falord
+data = data[data$newordhist != 0 | data$sumrecent != 0,]
+
+#threshold
+sum(data$falord)/(sum(data$falord)+sum(data$sprord))
+
+idx <- which(data$newordhist < data$sumrecent)
+for (x in idx) {
+data[x, "falord"] = round(0.65*data[x,"ordhist"])
+data[x, "sprord"] = data[x,"ordhist"] - data[x, "falord"]
+}
+data$ordhist = data$sprord + data$falord
+data$newordhist <- NULL
+```
+
+### Data Imputation for slshist
+```{r}
+idx = which(data$ordhist>0 & data$slshist == 0)
+wrongsales = data[idx,]
+rightsales = data[-idx,]
+
+imputelm <- lm(slshist ~ ordhist, data = rightsales)
+wrongsales$slshist = predict(imputelm, wrongsales)
+
+data = rbind(wrongsales, rightsales)
+``` 
+
+### Additional Variables for model building
+Average Order Size (Lifetime)
+```{r}
+data$avgLTOrder = data$slshist/data$ordhist
+```
+
+Generate new variable durlp - Duration Since Last Purchase till 12/1/2012
+```{r}
+data$durlp=round((as.Date('12/1/2012',format="%m/%d/%Y")-data$datelp6)/365,1)
+```
+
+Generate new varaible adyear -  Year Added to the System
+```{r}
+data$datead6 = as.Date(data$datead6, format="%m/%d/%Y")
+data$adyear = as.integer(substr(data$datead6,0,4))
+```
+
+Generate new variable durad - Duration Since date added till 12/1/2012
+```{r}
+data$durad=round((as.Date('12/1/2012',format="%m/%d/%Y")-data$datead6)/365,1)
+```
+
+Generate new dummy variable dreturn - returning clients if they have strictly more than 1 order. Recall: we don't have customers with 0 orders!
+```{r}
+data$dreturn = data$ordhist > 1
+```
+
+Generate new dummy fall_pref: customers who have bought more in the fall than in the spring. Could be useful since our promotion is during the fall.
+```{r}
+data$fall_pref = data$falord > data$sprord
+```
+
+Generate dormant dummy: customers who haven't purchased in the last 3 years.
+```{r}
+data$dormant = (data$sumrecent == 0)
+```
+
+Generate orderconsist variable dummy: 1 for customers who have placed an order last year and 2 years ago
+```{r}
+data$orderconsist = 0
+data$orderconsist[data$ordlyr>0 & data$ord2ago>0] = 1
+table(data$orderconsist)
+```
+
+Generate salesconsist variable dummy: 1 for customers who have sales history from last year and 2 years ago.
+```{r}
+data$salesconsist = 0
+data$salesconsist[data$slslyr>0 & data$sls2ago>0] = 1
+table(data$salesconsist)
+```
+
+### Groups based on Last Purchase Year (lpuryear)
+If we want to use this, we should definitely reevaluate the buckets. These are also stored as an ordered factor.
+```{r}
+data$lpcode = ordered(cut(data$lpuryear, breaks = c(-Inf, 2003, 2010, 2012, Inf), labels = 1:4))
+plot(data$lpcode)
+```
+
+### Groups based on Orders in the last years
+A lot of people haven't purchased for at least 4 years, according to the `sls` data columns.
+```{r}
+data$stycode[data$ordtyr > 0] = 0
+data$stycode[is.na(data$stycode) & data$ordlyr > 0] = 1
+data$stycode[is.na(data$stycode) & data$ord2ago > 0] = 2
+data$stycode[is.na(data$stycode) & data$ord3ago > 0] = 3
+data$stycode[is.na(data$stycode)] = 4 
+
+data$stycode = ordered(data$stycode) 
+
+plot(data$stycode)
+```
+
+Create log transormation for variables measured in dollars. Create sqrt transformation for count variables.
+Will be useful when used as predictors in regression analysis.
+```{r}
+final = data
+final$log_td = log(final$targdol + .001)
+final$log_LTOavg = log(final$avgLTOrder)
+final$log_slslyr = log(final$slslyr + 1)
+final$log_slstyr = log(final$slstyr + 1)
+final$log_sls2yr = log(final$sls2ago + 1)
+final$log_sls3yr = log(final$sls3ago + 1)
+final$log_slshist = log(final$slshist)
+final$sqrt_ordlyr = sqrt(final$ordlyr)
+final$sqrt_ordtyr = sqrt(final$ordtyr)
+final$sqrt_ord2yr = sqrt(final$ord2ago)
+final$sqrt_ord3yr = sqrt(final$ord3ago)
+final$sqrt_ordhist = sqrt(final$ordhist)
+```
+
+### Export 
+```{r}
+write.csv(final, "output/final.csv", row.names = FALSE)
+```
