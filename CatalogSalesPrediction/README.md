@@ -42,10 +42,14 @@ predicted targdol from the multiple regression model by the predicted probabilit
 logistic regression model.
 
 ### Criteria for evaluating fitted models:
-The final fitted regression model should meet the usual criteria such as significant coefficients, satisfactory residual plots, good fit as
-measured by R2 or R2 adj, parsimony and interpretability of the model etc.
+The final fitted regression model should meet the usual criteria such as:
+* significant coefficients
+* satisfactory residual plots
+* good fit as measured by R2 or R2 adj
+* parsimony and interpretability of the model etc.
+
 Two numerical criteria will be used to evaluate the fitted models on the test set:
-Statistical Criterion : Mean square prediction error (MSPE) 
-Financial Criterion : Select the top 1000 customers (prospects) from the test set who have
+* Statistical Criterion : Mean square prediction error (MSPE) 
+* Financial Criterion : Select the top 1000 customers (prospects) from the test set who have
 the highest E(targdol). Then find their total actual purchases. This is the payoff and
 should be as high as possible.
