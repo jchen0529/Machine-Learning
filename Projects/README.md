@@ -7,7 +7,7 @@ I will record my learnings on different topics and share reproducible ML project
 
 ### Projects
 
-* **Retail Company's Catalog Sales Prediction**: Predict top spending customers and their purchase amounts by building a logistic regression model to predict customers' purchasing likelihood and a multiple regression model to predict customers' expenditures. [[R folder]](https://github.com/jchen0529/Machine-Learning/tree/master/CatalogSalesPrediction)
+* **Retail Company's Catalog Sales Prediction**: Predict top spending customers and their purchase amounts by building a logistic regression model to predict customers' purchasing likelihood and a multiple regression model to predict customers' expenditures. [[R folder]](https://github.com/jchen0529/Machine-Learning/tree/master/Projects/CatalogSalesPrediction)
 
 ***
 
