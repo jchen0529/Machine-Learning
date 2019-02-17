@@ -13,4 +13,8 @@ I will record my learnings on different topics and share reproducible ML project
 
 ### Topics
 
-* **Text Analytics**: Text classification, sentiment analysis and topic modeling. [[Python folder]](https://github.com/jchen0529/Machine-Learning/tree/master/Text_Analytics)
+**Text Analytics**
+
+* **Regex101**: Basic Regex knowledge and pattern finding. [[Python folder]](https://github.com/jchen0529/Machine-Learning/tree/master/Text_Analytics/Regex101.ipynb)
+
+* **Text classifiation with Naive Bayes**: Build a simple Naive Bayes classifier to predict tag of text. [[Python folder]](https://github.com/jchen0529/Machine-Learning/tree/master/Text_Analytics/ClassifyTextWithNaiveBayes.ipynb)
