@@ -18,4 +18,4 @@ I will record my learnings on different topics and share reproducible ML project
 * **Regex101**: Basic Regex knowledge and pattern finding. [[Python folder]](https://github.com/jchen0529/Machine-Learning/blob/master/Text%20Analytics/Regex101.ipynb)
 
 * **Text classifiation with Naive Bayes**: Build a simple Naive Bayes classifier to predict tag of text. [[Python folder]](https://github.com/jchen0529/Machine-Learning/blob/master/Text%20Analytics/ClassifyTextWithNaiveBayes.ipynb)
-
+	* La Place Smoothing | Multinomial Naive Bayes
