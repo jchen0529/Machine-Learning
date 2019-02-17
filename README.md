@@ -13,4 +13,4 @@ I will record my learnings on different topics and share reproducible ML project
 
 ### Topics
 
-* **Text Analytics**
+* **Text Analytics**: Text classification, sentiment analysis and topic modeling. [[Python folder]](https://github.com/jchen0529/Machine-Learning/tree/master/Text_Analytics)
