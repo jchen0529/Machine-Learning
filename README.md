@@ -19,3 +19,6 @@ I will record my learnings on different topics and share reproducible ML project
 
 * **Text classifiation with Naive Bayes**: Build a simple Naive Bayes classifier to predict tag of text. [[Python folder]](https://github.com/jchen0529/Machine-Learning/blob/master/Text%20Analytics/ClassifyTextWithNaiveBayes.ipynb)
 	* La Place Smoothing | Multinomial Naive Bayes
+
+* **Movie Review Sentiment Analysis**: Experimented variations of feature engineering and trained language models with Naive Bayes classifier to predict whether a movie review is positive or negative sentiment. [[Python folder]](https://github.com/jchen0529/Machine-Learning/blob/master/Text%20Analytics/MovieReviewSentimentAnalysis.ipynb)
+	* TF-IDF | Multinomial Naive Bayes
