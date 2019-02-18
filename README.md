@@ -7,7 +7,7 @@ I will record my learnings on different topics and share reproducible ML project
 
 ### Projects
 
-* **Retail Company's Catalog Sales Prediction**: Predict top spending customers and their purchase amounts by building a logistic regression model to predict customers' purchasing likelihood and a multiple regression model to predict customers' expenditures. [[R folder]](https://github.com/jchen0529/Machine-Learning/tree/master/Projects/CatalogSalesPrediction)
+* **Retail company's catalog sales prediction**: Predict top spending customers and their purchase amounts by building a logistic regression model to predict customers' purchasing likelihood and a multiple regression model to predict customers' expenditures. [[R folder]](https://github.com/jchen0529/Machine-Learning/tree/master/Projects/CatalogSalesPrediction)
 
 ***
 
@@ -20,5 +20,7 @@ I will record my learnings on different topics and share reproducible ML project
 * **Text classifiation with Naive Bayes**: Build a simple Naive Bayes classifier to predict tag of text. [[Python folder]](https://github.com/jchen0529/Machine-Learning/blob/master/Text%20Analytics/ClassifyTextWithNaiveBayes.ipynb)
 	* La Place Smoothing | Multinomial Naive Bayes
 
-* **Movie Review Sentiment Analysis**: Experimented variations of feature engineering and trained language models with Naive Bayes classifier to predict whether a movie review is positive or negative sentiment. [[Python folder]](https://github.com/jchen0529/Machine-Learning/blob/master/Text%20Analytics/MovieReviewSentimentAnalysis.ipynb)
+* **Movie review sentiment analysis**: Experimented variations of feature engineering and trained language models with Naive Bayes classifier to predict whether a movie review is positive or negative sentiment. [[Python folder]](https://github.com/jchen0529/Machine-Learning/blob/master/Text%20Analytics/MovieReviewSentimentAnalysis.ipynb)
 	* TF-IDF | Multinomial Naive Bayes
+
+* **Spam Words detection**: Trained a MNB model to classify spam/ham msg and explore further insights on spamminess of tokens. [[Python folder]](https://github.com/jchen0529/Machine-Learning/blob/master/Text%20Analytics/SpamWordsDetectionNB.ipynb)
