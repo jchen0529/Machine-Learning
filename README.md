@@ -24,3 +24,6 @@ I will record my learnings on different topics and share reproducible ML project
 	* TF-IDF | Multinomial Naive Bayes
 
 * **Spam Words detection**: Trained a MNB model to classify spam/ham msg and explore further insights on spamminess of tokens. [[Python folder]](https://github.com/jchen0529/Machine-Learning/blob/master/Text%20Analytics/SpamWordsDetectionNB.ipynb)
+
+* **Introduction to LDA and Topic Modeling**: Introduce the concept of LDA model followed by a model demontration and a summary on Airbnb's application of LDA to classify message intents. [[Python folder]](https://github.com/jchen0529/Machine-Learning/blob/master/Text%20Analytics/LDAIntro.ipynb)
+	* LDA | Topic Modeling
