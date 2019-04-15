@@ -27,3 +27,7 @@ I will record my learnings on different topics and share reproducible ML project
 
 * **Introduction to LDA and Topic Modeling**: Introduce the concept of LDA model followed by a model demontration and a summary on Airbnb's application of LDA to classify message intents. [[Python folder]](https://github.com/jchen0529/Machine-Learning/blob/master/Text%20Analytics/LDAIntro.ipynb)
 	* LDA | Topic Modeling
+
+* **Discover News Topics**: Apply LDA with different techniques to ABC news articles titles [[Python folder]](https://github.com/jchen0529/Machine-Learning/blob/master/Text%20Analytics/DiscoverNewsTopics.ipynb)
+	* LDA | Topic Modeling
+
